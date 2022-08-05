@@ -4,7 +4,7 @@ import { REST } from '@discordjs/rest';
 import { GoogleSpreadsheet } from 'google-spreadsheet'
 import { readFileSync } from 'fs';
 
-import { LSPD_Roles } from './Enum/LSPD_Roles.js';
+import { Roles } from './enum/Roles.js';
 import { isInArray } from './utils/isInArray.js';
 
 config();
@@ -24,8 +24,9 @@ await doc.useServiceAccountAuth({
 });
 
 const client = new Client({intents: ['Guilds', 'GuildMessages']});
-
 const rest = new REST({version: '10'}).setToken(TOKEN);
+
+const onDutyEmployees = [];
 
 client.login(TOKEN);
 
@@ -39,7 +40,7 @@ client.on('interactionCreate', async (interaction) => {
             const name = interaction.options.get('nom').member.nickname;
             const grade = interaction.options.get('grade').value;
             await doc.loadInfo();
-            const sheet = doc.sheetsByIndex[0];
+            const sheet = doc.sheetsByTitle[interaction.options.get('job').value];
             const rows = await sheet.getRows();
             if (isInArray(rows, name)) {
                 interaction.reply({content: 'Cet employée est déjà enregistré.'});
@@ -49,13 +50,34 @@ client.on('interactionCreate', async (interaction) => {
             interaction.reply({content: 'Employée enregistrée avec succès!'});
         } else if (interaction.commandName === 'duty_on') {
             await doc.loadInfo();
-            const sheet = doc.sheetsByIndex[0];
+            const sheet = doc.sheetsByTitle[interaction.options.get('job').value];
             const rows = await sheet.getRows();
             for (let i = 0; i < rows.length; i++) {
                 if (rows[i]._rawData[0] === interaction.member.nickname) {
                     rows[i]._rawData[4] = 'ON'
                     await rows[i].save();
+                    onDutyEmployees.push({
+                        name: interaction.member.nickname,
+                        dutyOnTime: new Date(),
+                        dutyOffTime: null
+                    })
                     interaction.reply({content: 'Votre service est activé.'});
+                }
+            }
+        } else if (interaction.commandName === 'duty_off') {
+            await doc.loadInfo();
+            const sheet = doc.sheetsByTitle[interaction.options.get('job').value];
+            const rows = await sheet.getRows();
+            for (let i = 0; i < rows.length; i++) {
+                if (rows[i]._rawData[0] === interaction.member.nickname) {
+                    rows[i]._rawData[4] = 'OFF'
+                    let time = new Date();
+                    // get number of hours worked
+                    let hours = (time.getTime() - onDutyEmployees[0].dutyOnTime.getTime()) / 3600000;
+                    rows[i]._rawData[2] = Math.ceil(rows[i]._rawData[2] + hours);
+                    console.log(hours)
+                    await rows[i].save();
+                    interaction.reply({content: 'Votre service est désactivé.'});
                 }
             }
         }
@@ -63,21 +85,47 @@ client.on('interactionCreate', async (interaction) => {
 })
 
 async function main() {
+    await doc.loadInfo();
+    const sheet = await doc.sheetsByTitle['Liste des jobs'];
+    const rows = await sheet.getRows();
+    const jobs = []
+    for (let i = 0; i < rows.length; i++) {
+        jobs.push({
+            name: rows[i]._rawData[0],
+            value: rows[i]._rawData[0]
+        })
+    }
+    
     const commands = [
         {
             name: 'duty_on',
-            description: 'Prenez votre service avec cette commande.'
+            description: 'Prenez votre service avec cette commande.',
+            options: [
+                {name: 'job', description: 'Job de l\'employée.', type: 3, required: true, choices: jobs}
+            ]
         },
         {
             name: 'duty_off',
-            description: 'Vous déposez votre service avec cette commande.'
+            description: 'Vous déposez votre service avec cette commande.',
+            options: [
+                {name: 'job', description: 'Job de l\'employée.', type: 3, required: true, choices: jobs}
+            ]
         },
         {
             name: 'register_employee',
             description: 'Enregistrer un nouveau employée dans la base de donnée du bot.',
             options: [
                 {name: 'nom', description: 'Nom de l\'employée.', type: 6, required: true},
-                {name: 'grade', description: 'Grade de l\'employée.', type: 3, required: true, choices: LSPD_Roles},
+                {name: 'grade', description: 'Grade de l\'employée.', type: 3, required: true, choices: Roles},
+                {name: 'job', description: 'Job de l\'employée.', type: 3, required: true, choices: jobs}
+            ]
+        },
+        {
+            name: 'register_job',
+            description: 'Enregistrer un nouveau job dans la base de donnée du bot.',
+            options: [
+                {name: 'nom', description: 'Nom du job.', type: 3, required: true},
+                {name: 'job', description: 'Job de l\'employée.', type: 3, required: true, choices: jobs}
             ]
         }
     ]
