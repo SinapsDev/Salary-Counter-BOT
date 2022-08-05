@@ -5,7 +5,7 @@ import { GoogleSpreadsheet } from 'google-spreadsheet'
 import { readFileSync } from 'fs';
 
 import { LSPD_Roles } from './Enum/LSPD_Roles.js';
-import { Console } from 'console';
+import { isInArray } from './utils/isInArray.js';
 
 config();
 
@@ -38,11 +38,26 @@ client.on('interactionCreate', async (interaction) => {
         if (interaction.commandName === 'register_employee') {
             const name = interaction.options.get('nom').member.nickname;
             const grade = interaction.options.get('grade').value;
-            // console.log(interaction.options.get('grade'))
-            await doc.loadInfo(); // loads document properties and worksheets
+            await doc.loadInfo();
             const sheet = doc.sheetsByIndex[0];
-            await sheet.addRow({'Nom + Prénom': name, 'Heures travaillées': 0, 'Grade': grade, 'Salaire': '0$'});
+            const rows = await sheet.getRows();
+            if (isInArray(rows, name)) {
+                interaction.reply({content: 'Cet employée est déjà enregistré.'});
+                return;
+            };
+            await sheet.addRow({'Nom + Prénom': name, 'Heures travaillées': 0, 'Grade': grade, 'Salaire': '0$', 'Service': 'OFF'});
             interaction.reply({content: 'Employée enregistrée avec succès!'});
+        } else if (interaction.commandName === 'duty_on') {
+            await doc.loadInfo();
+            const sheet = doc.sheetsByIndex[0];
+            const rows = await sheet.getRows();
+            for (let i = 0; i < rows.length; i++) {
+                if (rows[i]._rawData[0] === interaction.member.nickname) {
+                    rows[i]._rawData[4] = 'ON'
+                    await rows[i].save();
+                    interaction.reply({content: 'Votre service est activé.'});
+                }
+            }
         }
     }
 })
