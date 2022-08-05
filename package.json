@@ -20,7 +20,8 @@
   "dependencies": {
     "@discordjs/rest": "^1.0.1",
     "discord.js": "^14.1.2",
-    "dotenv": "^16.0.1"
+    "dotenv": "^16.0.1",
+    "google-spreadsheet": "^3.3.0"
   },
   "type": "module",
   "devDependencies": {
