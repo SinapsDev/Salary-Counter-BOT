@@ -5,6 +5,7 @@ import { GoogleSpreadsheet } from 'google-spreadsheet'
 import { readFileSync } from 'fs';
 
 import { LSPD_Roles } from './Enum/LSPD_Roles.js';
+import { Console } from 'console';
 
 config();
 
@@ -32,11 +33,16 @@ client.on('ready', ()  => {
     console.log('Salary Bot by Sinaps is ON and ready to use!')
 })
 
-client.on('interactionCreate', (interaction) => {
+client.on('interactionCreate', async (interaction) => {
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === 'register_employee') {
-            console.log(interaction.options.get('nom'))
-            interaction.reply({content: 'Hey'});
+            const name = interaction.options.get('nom').member.nickname;
+            const grade = interaction.options.get('grade').value;
+            // console.log(interaction.options.get('grade'))
+            await doc.loadInfo(); // loads document properties and worksheets
+            const sheet = doc.sheetsByIndex[0];
+            await sheet.addRow({'Nom + Prénom': name, 'Heures travaillées': 0, 'Grade': grade, 'Salaire': '0$'});
+            interaction.reply({content: 'Employée enregistrée avec succès!'});
         }
     }
 })
@@ -62,10 +68,6 @@ async function main() {
     ]
 
     try {
-        await doc.loadInfo(); // loads document properties and worksheets
-        console.log(doc.title);
-        const sheet = doc.sheetsByIndex[0]; // or use doc.sheetsById[id] or doc.sheetsByTitle[title]
-        console.log(sheet.title);
         console.log('Started refreshing application (/) commands.');
         await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
             body: commands
